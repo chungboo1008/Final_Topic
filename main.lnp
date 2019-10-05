@@ -1,0 +1,4 @@
+"main.obj",
+"interrupt.obj",
+"LCD_setting.obj" 
+TO "main" 

@@ -1,0 +1,472 @@
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 1   
+
+
+C51 COMPILER V7.50, COMPILATION OF MODULE INTERRUPT
+OBJECT MODULE PLACED IN interrupt.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE interrupt.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include <reg51.h>
+   2          
+   3          //按鍵定義 直接對定數字
+   4          #define Key_0 0
+   5          #define Key_1 1
+   6          #define Key_2 2
+   7          #define Key_3 3
+   8          #define Key_4 4
+   9          #define Key_5 5
+  10          #define Key_6 6
+  11          #define Key_7 7
+  12          #define Key_8 8
+  13          #define Key_9 9
+  14          #define Key_modify 10      //修改
+  15          #define Key_input_check 11 //答案check
+  16          
+  17          #define Key_Port P3 // Port 3 接到 4x4 鍵盤
+  18          #define Display_Port P2 // Port 2 接到 7-Segment Display
+  19          
+  20          void Slect_Seg(unsigned char number); //七解碼LED選格
+  21          void Display_Seg(unsigned char display); //七解碼LED選要顯示什麼
+  22          sbit P2_6 = P2^6; //七解碼LED的port
+  23          sbit P2_7 = P2^7; //七解碼LED的port
+  24          
+  25          extern unsigned char key_current=0x0F; // 按鍵現在的狀態, 1: 正常 0:被按
+  26          extern unsigned char key_previous=0x0F; // 按鍵前 10ms 的狀態, 1: 正常 0:被按
+  27          
+  28          //變數i,中斷的時間變數,中斷的時間變數,視覺暫留使用到的變數,輸入為第幾次,LED計次數
+  29          extern int i,timer1_counter=3,timer0_counter=20,count=0,input_count,LED_count;
+  30          extern int buffer_key_value[5]; //儲存按了什麼按鍵的array
+  31          
+  32          extern int LED[5];  //LED要顯示什麼內容的arrary
+  33          extern int answer[3];  //儲存目標答案的arrary
+  34          extern unsigned char code select_array[5];  //七解碼選格的內容arrary
+  35          extern unsigned char code display_array[11];  //七解碼LED選要顯示什麼內容的arrary
+  36          
+  37          //七解碼LED選格的函式
+  38          void Slect_Seg(unsigned char number){
+  39   1      
+  40   1         P2_6 = 0;
+  41   1         P2_7 = 0;
+  42   1         P0 = number;
+  43   1         P2_6 = 0;
+  44   1         P2_7 = 1;
+  45   1      
+  46   1         P2_6 = 0;
+  47   1         P2_7 = 0;
+  48   1      
+  49   1      }
+  50          
+  51          //七解碼LED選要顯示什麼的函示
+  52          void Display_Seg(unsigned char display){
+  53   1      
+  54   1         P2_6 = 0;
+  55   1         P2_7 = 0;
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 2   
+
+  56   1         P0 = display;
+  57   1         P2_6 = 1;
+  58   1         P2_7 = 0;
+  59   1      
+  60   1         P2_6 = 0;
+  61   1         P2_7 = 0;
+  62   1      
+  63   1      }
+  64          
+  65          //中斷
+  66          void my_timer1(void) interrupt 3 {
+  67   1              
+  68   1              TL1 = (65536-9216)%256;
+  69   1              TH1 = (65536-9216)/256;
+  70   1          TF1 = 0;
+  71   1      
+  72   1          timer1_counter--;
+  73   1          if (timer1_counter==0){
+  74   2             if(count==0)
+  75   2                 {
+  76   3                      Slect_Seg(~0x01);
+  77   3                      Display_Seg(display_array[buffer_key_value[0]]);
+  78   3                      count=1;
+  79   3                 }
+  80   2                 else if(count==1)
+  81   2                 {
+  82   3                      Slect_Seg(~0x02);
+  83   3                      Display_Seg(display_array[buffer_key_value[1]]);
+  84   3                      count=2;
+  85   3                 }       
+  86   2                 else if(count==2)
+  87   2                 {
+  88   3                      Slect_Seg(~0x04);
+  89   3                      Display_Seg(display_array[buffer_key_value[2]]);
+  90   3                      count=3;
+  91   3                 }
+  92   2                 else if(count==3)
+  93   2                 {
+  94   3                      Slect_Seg(~0x10);
+  95   3                      Display_Seg(display_array[buffer_key_value[3]]);
+  96   3                      count=4;
+  97   3                 }
+  98   2                 else if(count==4)
+  99   2                 {
+ 100   3                      Slect_Seg(~0x20);
+ 101   3                      Display_Seg(display_array[buffer_key_value[4]]);
+ 102   3                      count=0;
+ 103   3                 }
+ 104   2                      
+ 105   2                      P1=LED[LED_count];
+ 106   2      
+ 107   2                      timer1_counter=3;
+ 108   2          }
+ 109   1              
+ 110   1      }
+ 111          
+ 112          /**********************************************************
+ 113          中斷副程式: Timer 0 中斷服務程式
+ 114          目的 : 定義 Timer0 計時中斷服務程式，名稱為 T0_int(void)
+ 115          ***********************************************************/
+ 116          void T0_int(void) interrupt 1
+ 117          {
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 3   
+
+ 118   1       unsigned char i=0;
+ 119   1      
+ 120   1       //目標答案設定
+ 121   1       answer[0]=5;
+ 122   1       answer[1]=2;
+ 123   1       answer[2]=0;
+ 124   1      
+ 125   1       TH0 = (65536-9216)/256; // 10ms 再設定 
+ 126   1       TL0 = (65536-9216)%256; // 10ms 再設定
+ 127   1       timer0_counter--;
+ 128   1       if(timer0_counter==0)
+ 129   1       {
+ 130   2              timer0_counter=20;
+ 131   2      
+ 132   2              //答案check的判斷
+ 133   2              if(input_count==4)
+ 134   2              {
+ 135   3                      Key_Port = 0xbf; // P2.6 = 0, 掃描第二列
+ 136   3                      key_current = Key_Port & 0x0f;
+ 137   3                      if (key_current != key_previous) { // 有按鍵被按 
+ 138   4                       if (key_current == 0x07){
+ 139   5                               //修改鍵被按
+ 140   5                               buffer_key_value[2] = 10;
+ 141   5                               input_count--;
+ 142   5                               }
+ 143   4                       }
+ 144   3      
+ 145   3                      Key_Port = 0xef; // P2.4 = 0, 掃描第四列
+ 146   3                      key_current = Key_Port & 0x0f; 
+ 147   3                      if (key_current != key_previous) 
+ 148   3                      { // 有按鍵被按
+ 149   4                        if (key_current == 0x07)
+ 150   4                        {                      
+ 151   5                               input_count++;  
+ 152   5                               if(buffer_key_value[0]==answer[0] && buffer_key_value[1]==answer[1] && buffer_key_value[2]==answer[2])
+ 153   5                               {
+ 154   6                                      buffer_key_value[3]=1;
+ 155   6                                      buffer_key_value[4]=10;
+ 156   6                                      LED_count=0;
+ 157   6                               }
+ 158   5                               else
+ 159   5                               {                              
+ 160   6                                      if(((buffer_key_value[0]*100+buffer_key_value[1]*10+buffer_key_value[2])-(answer[0]*100+answer[1]*10+
+             -answer[2]))>0)
+ 161   6                                              buffer_key_value[4]=5;  //小
+ 162   6                                      else
+ 163   6                                              buffer_key_value[4]=6; //大
+ 164   6                                              
+ 165   6                                  LED_count++;
+ 166   6      
+ 167   6                                      if(LED_count==5)
+ 168   6                                      {
+ 169   7                                              buffer_key_value[0]=answer[0];
+ 170   7                                              buffer_key_value[1]=answer[1];
+ 171   7                                              buffer_key_value[2]=answer[2];
+ 172   7                                              buffer_key_value[3]=10;
+ 173   7                                              buffer_key_value[4]=10;
+ 174   7                                              LED_count=0;
+ 175   7                                      }
+ 176   6                                      else
+ 177   6                                      {
+ 178   7                                              buffer_key_value[3]=0;
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 4   
+
+ 179   7                                              buffer_key_value[2]=10;
+ 180   7                                              buffer_key_value[1]=10;
+ 181   7                                              buffer_key_value[0]=10;
+ 182   7                                              input_count=1;
+ 183   7                                      }
+ 184   6                               }
+ 185   5                        }
+ 186   4                 }
+ 187   3              }
+ 188   2      
+ 189   2          //輸入個位數的按鍵判斷
+ 190   2              if(input_count==3)
+ 191   2              {       
+ 192   3               Key_Port = 0xbf; // P2.6 = 0, 掃描第二列
+ 193   3               key_current = Key_Port & 0x0f;
+ 194   3               if (key_current != key_previous) { // 有按鍵被按 
+ 195   4                       if (key_current == 0x0E){
+ 196   5                               buffer_key_value[2] = Key_9;
+ 197   5                               i++;
+ 198   5                               input_count++;
+ 199   5                       }
+ 200   4                       if (key_current == 0x0D){
+ 201   5                               buffer_key_value[2] = Key_6;
+ 202   5                               i++;
+ 203   5                               input_count++;
+ 204   5                       }
+ 205   4                       if (key_current == 0x0B){
+ 206   5                               buffer_key_value[2] = Key_3;
+ 207   5                               i++;
+ 208   5                               input_count++;
+ 209   5                       }
+ 210   4                       if (key_current == 0x07){
+ 211   5                               //修改鍵被按
+ 212   5                               i++;
+ 213   5                               input_count--;
+ 214   5                               buffer_key_value[1] = 10;
+ 215   5                       }
+ 216   4               }
+ 217   3              
+ 218   3               Key_Port = 0xdf; // P2.5 = 0, 掃描第三列
+ 219   3               key_current = Key_Port & 0x0f;
+ 220   3               if (key_current != key_previous) { // 有按鍵被按
+ 221   4                       if (key_current == 0x0E){
+ 222   5                               buffer_key_value[2] = Key_8;
+ 223   5                               i++;
+ 224   5                               input_count++;
+ 225   5                       }
+ 226   4                       if (key_current == 0x0D){
+ 227   5                               buffer_key_value[2] = Key_5;
+ 228   5                               i++;
+ 229   5                               input_count++;
+ 230   5                       }
+ 231   4                       if (key_current == 0x0B){
+ 232   5                               buffer_key_value[2] = Key_2;
+ 233   5                               i++;
+ 234   5                               input_count++;
+ 235   5                       }
+ 236   4                       if (key_current == 0x07){
+ 237   5                               buffer_key_value[2] = Key_0;
+ 238   5                               i++;
+ 239   5                               input_count++;
+ 240   5                       }
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 5   
+
+ 241   4               }
+ 242   3              
+ 243   3               Key_Port = 0xef; // P2.4 = 0, 掃描第四列
+ 244   3               key_current = Key_Port & 0x0f; 
+ 245   3               if (key_current != key_previous) { // 有按鍵被按
+ 246   4                       if (key_current == 0x0E){
+ 247   5                               buffer_key_value[2] = Key_7;
+ 248   5                               i++;
+ 249   5                               input_count++;
+ 250   5                       }
+ 251   4                       if (key_current == 0x0D){
+ 252   5                               buffer_key_value[2] = Key_4;
+ 253   5                               i++;
+ 254   5                               input_count++;
+ 255   5                       }
+ 256   4                       if (key_current == 0x0B){
+ 257   5                               buffer_key_value[2] = Key_1;
+ 258   5                               i++;
+ 259   5                               input_count++;
+ 260   5                       }
+ 261   4               }
+ 262   3               if (i >= 2) //若是有兩個以上按鍵被按
+ 263   3               {
+ 264   4                      buffer_key_value[2] = 10; // 七段顯示器全亮
+ 265   4                      input_count=3; //重新再輸入個位數
+ 266   4               }
+ 267   3              
+ 268   3               key_previous = key_current; // 更新上ㄧ次 10ms 的值
+ 269   3       }
+ 270   2      
+ 271   2       //輸入十位數的按鍵判斷 
+ 272   2       else if(input_count==2)
+ 273   2       {
+ 274   3               Key_Port = 0xbf; // P2.6 = 0, 掃描第二列
+ 275   3               key_current = Key_Port & 0x0f;
+ 276   3                       if (key_current != key_previous) { // 有按鍵被按 
+ 277   4                       if (key_current == 0x0E){
+ 278   5                               buffer_key_value[1] = Key_9;
+ 279   5                               i++;
+ 280   5                               input_count++;
+ 281   5                       }
+ 282   4                       if (key_current == 0x0D){
+ 283   5                               buffer_key_value[1] = Key_6;
+ 284   5                               i++;
+ 285   5                               input_count++;
+ 286   5                       }
+ 287   4                       if (key_current == 0x0B){
+ 288   5                               buffer_key_value[1] = Key_3;
+ 289   5                               i++;
+ 290   5                               input_count++;
+ 291   5                       }
+ 292   4                       if (key_current == 0x07){
+ 293   5                               //修改鍵被按
+ 294   5                               i++;
+ 295   5                               input_count--;
+ 296   5                               buffer_key_value[0] = 10;
+ 297   5                       }
+ 298   4               }
+ 299   3              
+ 300   3               Key_Port = 0xdf; // P2.5 = 0, 掃描第三列
+ 301   3               key_current = Key_Port & 0x0f;
+ 302   3               if (key_current != key_previous) { // 有按鍵被按
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 6   
+
+ 303   4                       if (key_current == 0x0E){
+ 304   5                               buffer_key_value[1] = Key_8;
+ 305   5                               i++;
+ 306   5                               input_count++;
+ 307   5                       }
+ 308   4                       if (key_current == 0x0D){
+ 309   5                               buffer_key_value[1] = Key_5;
+ 310   5                               i++;
+ 311   5                               input_count++;
+ 312   5                       }
+ 313   4                       if (key_current == 0x0B){
+ 314   5                               buffer_key_value[1] = Key_2;
+ 315   5                               i++;
+ 316   5                               input_count++;
+ 317   5                       }
+ 318   4                       if (key_current == 0x07){
+ 319   5                               buffer_key_value[1] = Key_0;
+ 320   5                               i++;
+ 321   5                               input_count++;
+ 322   5                       }
+ 323   4               }
+ 324   3              
+ 325   3               Key_Port = 0xef; // P2.4 = 0, 掃描第四列
+ 326   3               key_current = Key_Port & 0x0f; 
+ 327   3               if (key_current != key_previous) { // 有按鍵被按
+ 328   4                       if (key_current == 0x0E){
+ 329   5                               buffer_key_value[1] = Key_7;
+ 330   5                               i++;
+ 331   5                               input_count++;
+ 332   5                       }
+ 333   4                       if (key_current == 0x0D){
+ 334   5                               buffer_key_value[1] = Key_4;
+ 335   5                               i++;
+ 336   5                               input_count++;
+ 337   5                       }
+ 338   4                       if (key_current == 0x0B){
+ 339   5                               buffer_key_value[1] = Key_1;
+ 340   5                               i++;
+ 341   5                               input_count++;
+ 342   5                       }
+ 343   4               }
+ 344   3               if (i >= 2) //若是有兩個以上按鍵被按
+ 345   3               {
+ 346   4                      buffer_key_value[1] = 10; // 七段顯示器全亮
+ 347   4                      input_count=2; //重新再輸入十位數
+ 348   4               }
+ 349   3              
+ 350   3               key_previous = key_current; // 更新上ㄧ次 10ms 的值
+ 351   3       }
+ 352   2      
+ 353   2        //輸入百位數的按鍵判斷
+ 354   2        if(input_count==1)
+ 355   2        {     
+ 356   3               Key_Port = 0xbf; // P2.6 = 0, 掃描第二列
+ 357   3               key_current = Key_Port & 0x0f;
+ 358   3                       if (key_current != key_previous) { // 有按鍵被按 
+ 359   4                       if (key_current == 0x0E){
+ 360   5                               buffer_key_value[0] = Key_9;
+ 361   5                               i++;
+ 362   5                               input_count++;
+ 363   5                       }
+ 364   4                       if (key_current == 0x0D){
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 7   
+
+ 365   5                               buffer_key_value[0] = Key_6;
+ 366   5                               i++;
+ 367   5                               input_count++;
+ 368   5                       }
+ 369   4                       if (key_current == 0x0B){
+ 370   5                               buffer_key_value[0] = Key_3;
+ 371   5                               i++;
+ 372   5                               input_count++;
+ 373   5                       }
+ 374   4               }
+ 375   3              
+ 376   3               Key_Port = 0xdf; // P2.5 = 0, 掃描第三列
+ 377   3               key_current = Key_Port & 0x0f;
+ 378   3               if (key_current != key_previous) { // 有按鍵被按
+ 379   4                       if (key_current == 0x0E){
+ 380   5                               buffer_key_value[0] = Key_8;
+ 381   5                               i++;
+ 382   5                               input_count++;
+ 383   5                       }
+ 384   4                       if (key_current == 0x0D){
+ 385   5                               buffer_key_value[0] = Key_5;
+ 386   5                               i++;
+ 387   5                               input_count++;
+ 388   5                       }
+ 389   4                       if (key_current == 0x0B){
+ 390   5                               buffer_key_value[0] = Key_2;
+ 391   5                               i++;
+ 392   5                               input_count++;
+ 393   5                       }
+ 394   4                       if (key_current == 0x07){
+ 395   5                               buffer_key_value[0] = Key_0;
+ 396   5                               i++;
+ 397   5                               input_count++;
+ 398   5                       }
+ 399   4               }
+ 400   3              
+ 401   3               Key_Port = 0xef; // P2.4 = 0, 掃描第四列
+ 402   3               key_current = Key_Port & 0x0f; 
+ 403   3               if (key_current != key_previous) { // 有按鍵被按
+ 404   4                       if (key_current == 0x0E){
+ 405   5                               buffer_key_value[0] = Key_7;
+ 406   5                               i++;
+ 407   5                               input_count++;
+ 408   5                       }
+ 409   4                       if (key_current == 0x0D){
+ 410   5                               buffer_key_value[0] = Key_4;
+ 411   5                               i++;
+ 412   5                               input_count++;
+ 413   5                       }
+ 414   4                       if (key_current == 0x0B){
+ 415   5                               buffer_key_value[0] = Key_1;
+ 416   5                               i++;
+ 417   5                               input_count++;
+ 418   5                       }
+ 419   4               }
+ 420   3               if (i >= 2) //若是有兩個以上按鍵被按
+ 421   3               {
+ 422   4                      buffer_key_value[0] = 10; // 七段顯示器全亮
+ 423   4                      input_count=1; //重新再輸入百位數
+ 424   4               }
+ 425   3               
+ 426   3               key_previous = key_current; // 更新上ㄧ次 10ms 的值
+C51 COMPILER V7.50   INTERRUPT                                                             06/24/2018 13:15:28 PAGE 8   
+
+ 427   3               
+ 428   3        }
+ 429   2       
+ 430   2      
+ 431   2       }
+ 432   1       
+ 433   1       
+ 434   1      } 
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1532    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      8    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
